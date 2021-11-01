@@ -1,0 +1,61 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(USER)
+  accounts      Account[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime       @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  name         String
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  transactions Transaction[]
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id])
+  date        DateTime
+  description String
+  amount      Decimal  @db.Decimal(14, 2)
+  category    String?
+  createdAt   DateTime @default(now())
+
+  @@index([accountId, date])
+}
+
+/// One row per issued refresh token. Rotation revokes the old row; reuse of a revoked
+/// token revokes the whole family (every token descended from the same login).
+model RefreshToken {
+  id        String    @id // the token's jti claim
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family    String
+  tokenHash String // sha256 of the token; the raw token is never stored
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([family])
+  @@index([userId])
+}
